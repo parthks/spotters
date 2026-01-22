@@ -1,0 +1,163 @@
+local sqlite3 = require("lsqlite3")
+db = db or sqlite3.open_memory()
+dbAdmin = require("@rakis/DbAdmin").new(db)
+
+POSTS_TABLE = [[
+    CREATE TABLE IF NOT EXISTS Posts (
+        ID TEXT PRIMARY KEY NOT NULL,
+        Date TEXT,
+        CreatedBy TEXT,
+        Type TEXT,
+        Status TEXT,
+        Latitude REAL,
+        Longitude REAL,
+        Image TEXT
+    );
+]]
+
+
+HISTORICAL_POSTS = [[
+    CREATE TABLE IF NOT EXISTS History (
+        ID TEXT PRIMARY KEY NOT NULL,
+        PID TEXT,
+        Date TEXT,
+        CreatedBy TEXT,
+        Image TEXT,
+        FOREIGN KEY (PID) REFERENCES Posts(ID)
+    );
+]]
+
+
+db:exec("DROP TABLE IF EXISTS Posts;")
+db:exec("DROP TABLE IF EXISTS History;")
+
+function InitTables()
+    db:exec(POSTS_TABLE)
+    db:exec(HISTORICAL_POSTS)
+    return dbAdmin:tables()
+end
+
+return InitTables()
+
+
+Handlers.add("1Human.New-Post", 
+    function (msg)
+        return msg.Action == "New-Post"
+    end,
+    function (msg)
+        print("got action, adding new post now - ".. msg.Id)
+        local ID = msg.Id
+        local Date = msg.Date or "12-12-12"
+        local CreatedBy = msg.From  
+        local Type = msg.IssueType or "general" 
+        local Status = msg.Status or "open"
+        local Latitude = msg.Latitude
+        local Longitude = msg.Longitude
+        local Image = msg.Data or ""
+
+        -- add new post
+        print("adding new post")
+        
+        db:exec(string.format([[
+            INSERT INTO Posts (ID, Date, CreatedBy, Type, Status, Latitude, Longitude, Image) 
+            VALUES ("%s", "%s", "%s", "%s", "%s", "%f", "%f", "%s");
+        ]], ID, Date, CreatedBy, Type, Status, Latitude, Longitude, Image))
+
+        local newPostID = dbAdmin:exec(string.format([[select ID from posts where ID = "%s"]], msg.Id))
+        -- always true :/
+        if newPostID then 
+            Send({ Target = msg.From, Data = "Added New Post " .. msg.Id})
+        else 
+            Send({ Target = msg.From, Data = "Failed to add New Post"})
+        end
+
+
+    end
+)
+
+
+
+
+Handlers.add("1Human.Add-Post", 
+    function (msg)
+        return msg.Action == "Add-Post"
+    end,
+    function (msg)
+        print("got action, adding new post now")
+        local ID = msg.ID  
+        local Date = msg.Date  
+        local CreatedBy = msg.From  
+        local Type = msg.Type or "issue" 
+        local Status = msg.Status or "open"
+        local Latitude = msg.Latitude
+        local Longitude = msg.Longitude
+        local Image = msg.Data
+
+        print("getting posts")
+        local post = dbAdmin:exec(string.format([[
+            SELECT ID FROM Posts WHERE Latitude = "%f" AND Longitude = "%f" AND Type = "%s";
+        ]], Latitude, Longitude, Type))
+
+        if post then 
+        -- add to historic post
+
+        local sql_insert = string.format([[
+            INSERT INTO History (ID, PID, Date, CreatedBy, Image) 
+            VALUES ("%s", "%s", "%s", "%s", "%s");
+        ]], ID, post.ID, Date, CreatedBy, Image)
+        
+        dbAdmin:exec(sql_insert)
+        Send({ Target = msg.From, Data = "Added History to Post"})
+        
+        else 
+        -- add new post
+        print("adding new post")
+        local sql_insert = string.format([[
+            INSERT INTO Posts (ID, Date, CreatedBy, Type, Status, Latitude, Longitude, Image) 
+            VALUES ("%s", "%s", "%s", "%s", "%s", "%f", "%f", "%s");
+        ]], ID, Date, CreatedBy, Type, Status, Latitude, Longitude, Image)
+        
+        dbAdmin:exec(sql_insert)
+
+        Send({ Target = msg.From, Data = "Added New Post"})
+
+        end 
+
+    end
+)
+
+
+
+
+
+local json = require('json')
+
+Handlers.add("1Human.Get-Posts", function (msg)
+        return msg.Action == "Get-Posts"
+end,
+function (msg)
+    local posts = dbAdmin:exec([[
+        select ID, Date, CreatedBy, Type, Status, Latitude, Longitude from Posts;
+    ]])
+    print("Listing " .. #posts.. "posts")
+    Send({ Target = msg.From, Action = "1Human.Posts", Data = json.encode(posts) })
+
+end
+)
+
+Handlers.add("1Human.Get-Post", function (msg)
+        return msg.Action == "Get-Post"
+end,
+function (msg)
+    -- local ID = msg.PostID
+    
+
+    local post = dbAdmin:exec(string.format([[
+        SELECT * FROM Posts WHERE "ID" = "%s";
+    ]], msg.PostID))
+
+    print("Got Full Post: " .. msg.PostID)
+    Send({ Target = msg.From, Action = "1Human.Full-Post", Data = json.encode(post) })
+
+end
+)

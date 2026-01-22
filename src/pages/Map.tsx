@@ -1,14 +1,12 @@
 import { Box, Center, Loader, Modal } from "@mantine/core";
-import { dryrun } from "@permaweb/aoconnect";
-import { useEffect, useState } from "react";
+import { results } from "@permaweb/aoconnect";
+import { Map } from "leaflet";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import Header from "../components/Header";
+import IssueDetail from "../components/IssueDetail";
 import MyMap from "../components/Map";
 import { MarkerData } from "../lib/types";
-import { PROCESS_ID } from "../lib/utils";
-import { Link } from "react-router-dom";
-import IssueDetail from "../components/IssueDetail";
-import { useRef } from "react";
-import { Map } from "leaflet";
 
 const NAV_HEIGHT = 100;
 
@@ -43,19 +41,38 @@ export default function IssuesMap() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const result = await dryrun({
-        process: PROCESS_ID,
-        data: "",
-        tags: [{ name: "Action", value: "Get-Posts" }],
-        anchor: "1234",
+
+      // const balance = await dryrun({
+      //   Owner: "6fpt98wMlpt1Q1C6-xdNI0qqOGbbjhLt5zl0NFNsSHE",
+      //   process: "Pi-WmAQp2-mh-oWH9lWpz5EthlUDj_W0IusAv-RXhRk",
+      //   tags: [{ name: "Action", value: "Balance" }],
+      //   anchor: "1234",
+      // });
+
+      const data = await results({
+        // the arweave TXID of the message
+        // message: "JlbEo5XGosrvKKe57SjdSFcxkKDfCjQvrQD3MhTpkPU",
+        // the arweave TXID of the process
+        process: "Pi-WmAQp2-mh-oWH9lWpz5EthlUDj_W0IusAv-RXhRk",
+        sort: "DESC",
+        limit: 25,
       });
-      console.log("Dry run result", result);
-      const filteredResult = result.Messages.map((message) => {
-        const parsedData = JSON.parse(message.Data);
-        return parsedData;
-      });
-      console.log("Filtered result", filteredResult[0]);
-      setMarkers(filteredResult[0].filter((x: MarkerData) => x.Latitude && x.Longitude));
+      console.log(data);
+
+      // const result = await dryrun({
+      //   process: PROCESS_ID,
+      //   data: "",
+      //   tags: [{ name: "Action", value: "Get-Posts" }],
+      //   anchor: "1234",
+      // });
+
+      // console.log("Dry run result", balance);
+      // const filteredResult = result.Messages.map((message) => {
+      //   const parsedData = JSON.parse(message.Data);
+      //   return parsedData;
+      // });
+      // console.log("Filtered result", filteredResult[0]);
+      // setMarkers(filteredResult[0].filter((x: MarkerData) => x.Latitude && x.Longitude));
       setLoading(false);
     };
     fetchData();
